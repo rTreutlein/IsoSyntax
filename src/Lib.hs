@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module Lib where
 
 import Prelude hiding ((.),id)
@@ -55,3 +56,13 @@ apply (Iso ab _) = ab
 
 unapply :: Iso m a b -> b -> m a
 unapply (Iso _ ba) = ba
+
+inverse :: Iso m a b -> Iso m b a
+inverse (Iso f g) = Iso g f
+
+mkIso :: Monad m =>  (a -> b) -> (b -> a) -> Iso m a b
+mkIso f g = Iso (pure . f) (pure . g)
+
+
+
+

@@ -10,9 +10,7 @@ import Control.Monad.Trans.Class
 
 import qualified Data.Map as M
 
-type WordList = (M.Map String [String],[String],[(String,String)],Int)
-
-type MyRWST = RWST WordList () String (Either String)
+type MyRWST = RWST () () () (Either String)
 
 type SynIso a b = Iso MyRWST a b
 
@@ -21,39 +19,56 @@ type Syntax a = SynIso () a
 mkSynIso :: (a -> b) -> (b -> a) -> SynIso a b
 mkSynIso f g = Iso (pure . f) (pure . g)
 
-anytoken :: Syntax Char
+tolist :: Monad m => Iso m (a,a) [a]
+tolist = mkIso f g where
+    f (a,b) = a:b:[]
+    g [a,b] = (a,b)
+
+toString :: (Monad m, Show a, Read a) => Iso m a String
+toString = mkIso f g where
+    f a = show a
+    g s = read s
+
+runMyRWST (RWST runRWST) = runRWST () ()
+
+anytoken :: SynIso Char Char
 anytoken = token $ const True
 
-token :: (Char -> Bool) -> Syntax Char
+token :: (Char -> Bool) -> SynIso Char Char
 token cb = Iso f g where
-    f () = do
-        s <- get
-        case s of
-            (x:xs) -> if cb x
-                         then put xs >> pure x
-                         else lift $ Left "Wrong Token."
-            []     -> lift $ Left "Nothing left to parse."
-    g c = do
-        case cb c of
-          False -> lift $ Left "Printing Wrong Token."
-          True -> do
-              xs <- get
-              put $ c:xs
-              pure ()
+    f c = if cb c
+            then pure c
+            else lift $ Left "Parsing Wrong Token."
+    g c = if cb c
+             then pure c
+             else lift $ Left "Printing Wrong Token."
 
-nil :: Syntax [a]
-nil = mkSynIso f g where
-    f () = []
-    g [] = ()
+nil :: SynIso [a] [b]
+nil = Iso f g where
+    f [] = pure []
+    f _  = lift $ Left "Not empty"
+    g [] = pure []
+    g _  = lift $ Left "Not empty"
+
 
 cons :: SynIso (a,[a]) [a]
-cons = mkSynIso f g where
-    f (a,as) = a:as
-    g (a:as) = (a,as)
+cons = Iso f g where
+    f (a,as) = pure $ a:as
+    g (a:as) = pure $ (a,as)
+    g _ = lift $ Left "Empty List"
 
-many :: Syntax a -> Syntax [a]
-many syn = (cons . (syn &&& many syn)) <+> nil
+wrapcons :: SynIso (a,[a]) (b,[b]) -> SynIso [a] [b]
+wrapcons iso = cons . iso . inverse cons
 
-some :: Syntax a -> Syntax [a]
-some syn = cons . (syn &&& (some syn <+> nil))
+many :: SynIso a b -> SynIso [a] [b]
+many syn = (wrapcons (syn *** many syn)) <+> nil
+
+some :: SynIso a b -> SynIso [a] [b]
+some syn = (wrapcons (syn *** many syn))
+
+
+
+
+
+
 
