@@ -1,11 +1,15 @@
 {-# LANGUAGE Rank2Types #-}
-module Lib where
+module Iso.Lib where
 
 import Prelude hiding ((.),id)
 
 import Control.Category
 import Control.Monad
 import Control.Applicative
+
+infixr 5 <+>
+infixr 3 ***
+infixr 3 &&&
 
 instance (Monoid a) => Alternative (Either a) where
     empty = Left mempty
@@ -29,6 +33,8 @@ class Arrow a => ArrowPlus a where
 class Arrow a => ArrowChoice a where
     left  :: a b c -> a (Either b d) (Either c d)
     right :: a b c -> a (Either d b) (Either d c)
+    (+++) :: a b c -> a b' c' -> a (Either b b') (Either c c')
+    (|||) :: a b d -> a c d -> a (Either b c) d
 
 data Iso m a b = Iso (a -> m b) (b -> m a)
 
@@ -63,6 +69,45 @@ inverse (Iso f g) = Iso g f
 mkIso :: Monad m =>  (a -> b) -> (b -> a) -> Iso m a b
 mkIso f g = Iso (pure . f) (pure . g)
 
+ignore :: Monad m => a -> Iso m a ()
+ignore a = mkIso f g where
+    f _  = ()
+    g () = a
 
+insert :: Monad m => a -> Iso m () a
+insert a = inverse (ignore a)
 
+-- | Nested products associate.
+associate :: Monad m => Iso m (alpha, (beta, gamma)) ((alpha, beta), gamma)
+associate = mkIso f g where
+  f (a, (b, c)) = ((a, b), c)
+  g ((a, b), c) = (a, (b, c))
 
+-- | Products commute.
+commute :: Monad m => Iso m (alpha, beta) (beta, alpha)
+commute = mkIso f f where
+  f (a, b) = (b, a)
+
+-- | `()` is the unit element for products.
+unit :: Monad m => Iso m alpha (alpha, ())
+unit = mkIso f g where
+  f a = (a, ())
+  g (a, ()) = a
+
+addfst :: MonadPlus m => a -> Iso m b (a,b)
+addfst a = commute . addsnd a
+
+addsnd :: MonadPlus m => a -> Iso m b (b,a)
+addsnd a = second (insert a) . unit
+
+rmfst :: MonadPlus m => a -> Iso m (a,b) b
+rmfst a = inverse (addfst a)
+
+rmsnd :: MonadPlus m => a -> Iso m (b,a) b
+rmsnd a = inverse (addsnd a)
+
+(<&&) :: MonadPlus m => Iso m a b -> Iso m a () -> Iso m a b
+iso1 <&& iso2 = rmsnd () . (iso1 &&& iso2)
+
+(&&>) :: MonadPlus m => Iso m a () -> Iso m a b -> Iso m a b
+iso1 &&> iso2 = rmfst () . (iso1 &&& iso2)

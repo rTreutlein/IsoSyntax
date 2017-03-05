@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Iso
 
 main :: IO ()
 main = do
