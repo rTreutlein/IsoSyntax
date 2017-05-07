@@ -4,6 +4,7 @@ module Iso.Lib where
 
 import Prelude hiding ((.),id)
 
+import Data.Monoid
 import Control.Category
 import Control.Applicative
 import Control.Monad
@@ -28,6 +29,7 @@ instance (Monoid a) => MonadPlus (MEither a) where
     mzero = empty
     mplus = (<|>)
 -}
+
 class Category a => Arrow a where
     first :: a b c -> a (b, d) (c, d)
     second :: a b c -> a (d, b) (d, c)
@@ -46,7 +48,7 @@ class Arrow a => ArrowChoice a where
     (+++) :: a b c -> a b' c' -> a (Either b b') (Either c c')
     (|||) :: a b d -> a c d -> a (Either b c) d
 
-data Iso m a b = Iso (a -> m b) (b -> m a)
+data Iso m a b = Iso { apply :: (a -> m b) , unapply :: (b -> m a) }
 
 instance (Monad m) => Category (Iso m) where
     id = Iso pure pure
@@ -99,12 +101,6 @@ type SynMonad t s = (MonadTrans t
                     )
 type SynIso t a b = Iso (t ME) a b
 type Syntax t a = Iso (t ME) () a
-
-apply :: Iso m a b -> a -> m b
-apply (Iso ab _) = ab
-
-unapply :: Iso m a b -> b -> m a
-unapply (Iso _ ba) = ba
 
 inverse :: Iso m a b -> Iso m b a
 inverse (Iso f g) = Iso g f

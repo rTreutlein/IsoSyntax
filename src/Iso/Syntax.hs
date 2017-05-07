@@ -87,8 +87,31 @@ lookahead syn = Iso f g where
         pure a
     g _ = pure ()
 
+withoutState :: SynMonad t s => Syntax t a -> Syntax t a
+withoutState syn = Iso f g where
+    f () = do
+        state <- get
+        res <- apply syn ()
+        put state
+        pure res
+    g _ = pure ()
+
+onlyText :: SynMonad t s => Syntax t a -> Syntax t String
+onlyText syn = Iso f g where
+    f () = do
+        state <- get
+        text1 <- gets getText
+        apply syn ()
+        text2 <- gets getText
+        put state
+        modify (setText text2)
+        let len1 = length text1
+            len2 = length text2
+        pure (take (len1-len2) text1)
+    g s = modify (addText s)
+
 ptp :: SynMonad t s => Syntax t a -> SynIso t String String -> Syntax t b -> Syntax t b
-ptp syn1 iso syn2 = withText syn1 >>> iso >>> reparse syn2
+ptp syn1 iso syn2 = onlyText syn1 >>> iso >>> reparse syn2
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
