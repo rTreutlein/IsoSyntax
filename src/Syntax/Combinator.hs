@@ -1,17 +1,17 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE FlexibleContexts #-}
-module Iso.Syntax where
+module Syntax.Combinator where
 
 import Prelude hiding ((.),id)
 
 import Iso.Lib
 import Iso.Prim
+import Syntax.Lib
+import Syntax.Constructors
 
 import Control.Category
+import Control.Arrow
 import Control.Monad.State.Class
 import Control.Monad.Trans.Class
 
-import qualified Control.Arrow as A
 
 import qualified Data.Map as M
 import Data.List

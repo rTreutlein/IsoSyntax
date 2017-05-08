@@ -1,88 +1,74 @@
 module Iso.Prim where
 
 import Prelude hiding (id,(.))
-import Control.Category
 
 import Iso.Lib
+
+import Control.Category
+import Control.Arrow
+import Control.Monad
 import Control.Monad.Trans.Class
-import Data.List (partition)
 
-just :: SynMonad t s => SynIso t a (Maybe a)
-just = Iso f g where
-    f a = pure $ Just a
-    g (Just a) = pure  a
-    g Nothing  = lift $ Left "Expected Just but got Nothing."
+mkIso :: Monad m =>  (a -> b) -> (b -> a) -> Iso m a b
+mkIso f g = Iso (pure . f) (pure . g)
 
-nothing :: SynMonad t s => SynIso t () (Maybe a)
-nothing = Iso f g where
-    f () = pure Nothing
-    g Nothing  = pure ()
-    g (Just _) = lift $ Left "Expected Nothing but got Just"
+inverse :: Iso m a b -> Iso m b a
+inverse (Iso f g) = Iso g f
 
-nil :: SynMonad t s => SynIso t () [a]
-nil = mkIso f g where
-    f () = []
-    g [] = ()
+(<&&) :: MonadPlus m => Iso m a b -> Iso m a () -> Iso m a b
+iso1 <&& iso2 = iunit . (iso1 &&& iso2)
 
-cons :: SynMonad t s => SynIso t (a,[a]) [a]
-cons = Iso f g where
-    f (a,as) = pure (a:as)
-    g [] = lift $ Left "Can't unconse empty list"
-    g (a:as) = pure (a,as)
+(&&>) :: MonadPlus m => Iso m a () -> Iso m a b -> Iso m a b
+iso1 &&> iso2 = iunit . commute . (iso1 &&& iso2)
+
+ignoreAny :: Monad m => a -> Iso m a ()
+ignoreAny a = mkIso f g where
+    f _  = ()
+    g () = a
+
+-- | Nested products associate.
+associate :: Monad m => Iso m (alpha, (beta, gamma)) ((alpha, beta), gamma)
+associate = mkIso f g where
+  f (a, (b, c)) = ((a, b), c)
+  g ((a, b), c) = (a, (b, c))
+
+-- | Products commute.
+commute :: Monad m => Iso m (alpha, beta) (beta, alpha)
+commute = mkIso f f where
+  f (a, b) = (b, a)
+
+distribute :: Monad m => Iso m (Either a b,c) (Either (a,c) (b,c))
+distribute = mkIso f g where
+    f (Left  a ,b)  = Left (a,b)
+    f (Right a ,b)  = Right (a,b)
+    g (Left  (a,b)) = (Left a,b)
+    g (Right (a,b)) = (Right a,b)
+
+isoIterate :: MonadPlus t => Iso t alpha alpha -> Iso t alpha alpha
+isoIterate step = (isoIterate step <+> id) . step <+> id
+
+-- | `()` is the unit element for products.
+unit :: Monad m => Iso m alpha (alpha, ())
+unit = mkIso f g where
+  f a = (a, ())
+  g (a, ()) = a
+
+iunit :: Monad m => Iso m (alpha, ()) alpha
+iunit = inverse unit
+
+insertAny :: Monad m => a -> Iso m () a
+insertAny a = inverse (ignoreAny a)
+
+addfstAny :: MonadPlus m => a -> Iso m b (a,b)
+addfstAny a = commute . addsndAny a
+
+addsndAny :: MonadPlus m => a -> Iso m b (b,a)
+addsndAny a = second (insertAny a) . unit
+
+rmfstAny :: MonadPlus m => a -> Iso m (a,b) b
+rmfstAny a = inverse (addfstAny a)
+
+rmsndAny :: MonadPlus m => a -> Iso m (b,a) b
+rmsndAny a = inverse (addsndAny a)
 
 
-left :: SynMonad t s => SynIso t a (Either a b)
-left = Iso f g where
-    f a = pure $ Left a
-    g (Left a) = pure a
-    g (Right _) = lift $ Left "Was Expecting Left but got Right"
-
-right :: SynMonad t s => SynIso t b (Either a b)
-right = Iso f g where
-    f a = pure $ Right a
-    g (Right a) = pure a
-    g (Left _) = lift $ Left "Was Expecting Right but got Left"
-
--------------------------------------------------------------------------------
---List Utils
--------------------------------------------------------------------------------
-
-isoConcat :: Monad t =>  Iso t [[a]] [a]
-isoConcat = mkIso f g where
-    f = concat
-    g = map (: [])
-
---For converting elements or tuples into lists
---Lists are needed as arguments to form Link Atoms
-tolist1 :: (SynMonad t s,Show a) => SynIso t a [a]
-tolist1 = Iso f g where
-    f a   = pure [a]
-    g [a] = pure a
-    g a   = lift $ Left $ "Expecting List with exaclty two elements but got" ++ show a
-
-tolist2 :: (SynMonad t s,Show a) => SynIso t (a,a) [a]
-tolist2 = Iso f g where
-    f (a,b) = pure [a,b]
-    g [a,b] = pure (a,b)
-    g a     = lift $ Left $ "Expecting List with exaclty two elements but got" ++ show a
-
-partitionIso :: Monad t => (a -> Bool) -> Iso t [a] ([a],[a])
-partitionIso p = mkIso f g where
-    f = partition p
-    g = uncurry (++)
-
-isoDrop :: Monad t => Int -> Iso t [a] [a]
-isoDrop i = mkIso (drop i) id
-
-isoReverse :: Monad t => Iso t [a] [a]
-isoReverse = mkIso reverse reverse
-
-isoZip :: Monad t => Iso t ([a],[b]) [(a,b)]
-isoZip = mkIso (uncurry zip) unzip
-
-isoDistribute :: (SynMonad t s) => SynIso t (a,[b]) [(a,b)]
-isoDistribute = isoZip . reorder
-    where reorder = Iso f g
-          f (a,b)   = pure (replicate (length b) a,b)
-          g (a:_,b) = pure (a,b)
-          g ([],_)  = lift $ Left "Got Empty list but need at least 1 elem."

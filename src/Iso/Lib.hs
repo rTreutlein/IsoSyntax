@@ -6,47 +6,11 @@ import Prelude hiding ((.),id)
 
 import Data.Monoid
 import Control.Category
+import Control.Arrow
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.State.Class
-
-infixr 5 <+>
-infixr 3 ***
-infixr 3 &&&
-infixr 2 |||
-infixr 2 +++
-
-{-newtype MEither a b = MEither {runMEither :: Either a b}
-    deriving (Functor,Applicative,Monad)
-
-instance (Monoid a) => Alternative (MEither a) where
-    empty = MEither $ Left mempty
-    (MEither (Left _)) <|> r = r
-    r                  <|> _ = r
-
-instance (Monoid a) => MonadPlus (MEither a) where
-    mzero = empty
-    mplus = (<|>)
--}
-
-class Category a => Arrow a where
-    first :: a b c -> a (b, d) (c, d)
-    second :: a b c -> a (d, b) (d, c)
-    (***) :: a b c -> a d e -> a (b,d) (c,e)
-    (&&&) :: a b c -> a b d -> a b (c,d)
-
-class Arrow a => ArrowZero a where
-    zeroArrow :: a b c
-
-class ArrowZero a => ArrowPlus a where
-    (<+>) :: a b c -> a b c -> a b c
-
-class Arrow a => ArrowChoice a where
-    --left  :: a b c -> a (Either b d) (Either c d)
-    --right :: a b c -> a (Either d b) (Either d c)
-    (+++) :: a b c -> a b' c' -> a (Either b b') (Either c c')
-    (|||) :: a b d -> a c d -> a (Either b c) d
 
 data Iso m a b = Iso { apply :: (a -> m b) , unapply :: (b -> m a) }
 
@@ -75,8 +39,6 @@ instance (MonadPlus m) => ArrowPlus (Iso m) where
         g b = unapply iso1 b `mplus` unapply iso2 b
 
 instance (MonadPlus m) => ArrowChoice (Iso m) where
-    --left  = (+++ id)
-    --right = (id +++)
     iso1 +++ iso2 = Iso f g where
         f (Left b)   = Left  <$> apply iso1 b
         f (Right b') = Right <$> apply iso2 b'
@@ -87,69 +49,3 @@ instance (MonadPlus m) => ArrowChoice (Iso m) where
               f (Left x) = pure x
               f (Right x) = pure x
               g = pure . Left
-
-class SyntaxState a where
-    getText :: a -> String
-    addText :: String -> a -> a
-    setText :: String -> a -> a
-
-type ME = Either String
-type SynMonad t s = (MonadTrans t
-                    ,MonadPlus (t ME)
-                    ,SyntaxState s
-                    ,MonadState s (t ME)
-                    )
-type SynIso t a b = Iso (t ME) a b
-type Syntax t a = Iso (t ME) () a
-
-inverse :: Iso m a b -> Iso m b a
-inverse (Iso f g) = Iso g f
-
-mkIso :: Monad m =>  (a -> b) -> (b -> a) -> Iso m a b
-mkIso f g = Iso (pure . f) (pure . g)
-
-ignoreAny :: Monad m => a -> Iso m a ()
-ignoreAny a = mkIso f g where
-    f _  = ()
-    g () = a
-
-insertAny :: Monad m => a -> Iso m () a
-insertAny a = inverse (ignoreAny a)
-
-addfstAny :: MonadPlus m => a -> Iso m b (a,b)
-addfstAny a = commute . addsndAny a
-
-addsndAny :: MonadPlus m => a -> Iso m b (b,a)
-addsndAny a = second (insertAny a) . unit
-
-rmfstAny :: MonadPlus m => a -> Iso m (a,b) b
-rmfstAny a = inverse (addfstAny a)
-
-rmsndAny :: MonadPlus m => a -> Iso m (b,a) b
-rmsndAny a = inverse (addsndAny a)
-
--- | Nested products associate.
-associate :: Monad m => Iso m (alpha, (beta, gamma)) ((alpha, beta), gamma)
-associate = mkIso f g where
-  f (a, (b, c)) = ((a, b), c)
-  g ((a, b), c) = (a, (b, c))
-
--- | Products commute.
-commute :: Monad m => Iso m (alpha, beta) (beta, alpha)
-commute = mkIso f f where
-  f (a, b) = (b, a)
-
--- | `()` is the unit element for products.
-unit :: Monad m => Iso m alpha (alpha, ())
-unit = mkIso f g where
-  f a = (a, ())
-  g (a, ()) = a
-
-iunit :: Monad m => Iso m (alpha, ()) alpha
-iunit = inverse unit
-
-(<&&) :: MonadPlus m => Iso m a b -> Iso m a () -> Iso m a b
-iso1 <&& iso2 = iunit . (iso1 &&& iso2)
-
-(&&>) :: MonadPlus m => Iso m a () -> Iso m a b -> Iso m a b
-iso1 &&> iso2 = iunit . commute . (iso1 &&& iso2)

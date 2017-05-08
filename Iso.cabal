@@ -16,10 +16,13 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Iso
+                     , Syntax
   other-modules:       Iso.Lib
-                     , Iso.Syntax
-                     , Iso.Util
                      , Iso.Prim
+                     , Syntax.Lib
+                     , Syntax.Combinator
+                     , Syntax.Constructors
+                     , Syntax.Util
   build-depends:       base >= 4.7 && < 5
                      , transformers
                      , containers
