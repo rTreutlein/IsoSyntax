@@ -122,8 +122,14 @@ optional syn = just . syn <+> nothing . text ""
 many :: SynMonad t s => Syntax t a -> Syntax t [a]
 many syn = (cons . (syn &&& many syn)) <+> nil
 
+manyTill :: SynMonad t s => Syntax t a -> Syntax t () -> Syntax t [a]
+manyTill syn end =  (nil . end) <+> (cons . (syn &&& many syn))
+
 some :: SynMonad t s => Syntax t a -> Syntax t [a]
 some syn = cons . (syn &&& many syn)
+
+someTill :: SynMonad t s => Syntax t a -> Syntax t () -> Syntax t [a]
+some syn end = cons . (syn &&& manyTill syn end)
 
 -- | `text` parses\/prints a fixed text and consumes\/produces a unit value.
 text :: SynMonad t s => String -> Syntax t ()
