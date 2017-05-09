@@ -129,7 +129,7 @@ some :: SynMonad t s => Syntax t a -> Syntax t [a]
 some syn = cons . (syn &&& many syn)
 
 someTill :: SynMonad t s => Syntax t a -> Syntax t () -> Syntax t [a]
-some syn end = cons . (syn &&& manyTill syn end)
+someTill syn end = cons . (syn &&& manyTill syn end)
 
 -- | `text` parses\/prints a fixed text and consumes\/produces a unit value.
 text :: SynMonad t s => String -> Syntax t ()
