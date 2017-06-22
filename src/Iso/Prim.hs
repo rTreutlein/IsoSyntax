@@ -15,7 +15,7 @@ mkIso f g = Iso (pure . f) (pure . g)
 inverse :: Iso m a b -> Iso m b a
 inverse (Iso f g) = Iso g f
 
-infix 4 &&>, <&&
+infixr 4 &&>, <&&
 
 (<&&) :: MonadPlus m => Iso m a b -> Iso m a () -> Iso m a b
 iso1 <&& iso2 = iunit . (iso1 &&& iso2)
