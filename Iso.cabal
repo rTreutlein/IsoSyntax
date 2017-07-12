@@ -23,8 +23,10 @@ library
                      , Syntax.Combinator
                      , Syntax.Constructors
                      , Syntax.Util
+                     , Syntax.TH
   build-depends:       base >= 4.7 && < 5
                      , transformers
                      , containers
                      , mtl
+                     , template-haskell
   default-language:    Haskell2010

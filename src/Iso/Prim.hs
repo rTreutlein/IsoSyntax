@@ -72,5 +72,3 @@ rmfstAny a = inverse (addfstAny a)
 
 rmsndAny :: MonadPlus m => a -> Iso m (b,a) b
 rmsndAny a = inverse (addsndAny a)
-
-
