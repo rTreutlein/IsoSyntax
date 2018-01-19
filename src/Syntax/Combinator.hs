@@ -37,12 +37,31 @@ token :: SynMonad t s => (Char -> Bool) -> Syntax t Char
 token cb = syntax f g where
     f s = case s of
             (c:cs) -> if cb c
-                     then Right (c,cs)
+                        then Right (c,cs)
                         else Left "Wrong token"
             []     -> Left "Nothing left to parse."
     g c = if cb c
              then Right [c]
              else Left "Printing wrong token."
+
+oneof :: SynMonad t s => [Char] -> Syntax t Char
+oneof xs = syntax f g where
+    f s = case s of
+            (c:cs) -> if c `elem` xs
+                        then Right (c,cs)
+                        else Left "Wrong token"
+            []     -> Left "Nothing left to parse."
+    g c = if c `elem` xs
+             then Right [c]
+             else Left "Printing wrong token"
+
+tokenN :: SynMonad t s => Int -> Syntax t String
+tokenN i = syntax f g where
+    f s = case s of
+            []        -> Left "Nothing left to parse."
+            otherwise -> Right $ splitAt i s
+    g c = Right c
+
 
 string :: SynMonad t s => String -> Syntax t String
 string s = syntax f g where
@@ -124,7 +143,7 @@ many :: SynMonad t s => Syntax t a -> Syntax t [a]
 many syn = (cons . (syn &&& many syn)) <+> nil
 
 manyTill :: SynMonad t s => Syntax t a -> Syntax t () -> Syntax t [a]
-manyTill syn end =  (nil . end) <+> (cons . (syn &&& many syn))
+manyTill syn end =  (nil . end) <+> (cons . (syn &&& manyTill syn end))
 
 some :: SynMonad t s => Syntax t a -> Syntax t [a]
 some syn = cons . (syn &&& many syn)
