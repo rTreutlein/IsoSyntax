@@ -55,6 +55,10 @@ unit = mkIso f g where
   f a = (a, ())
   g (a, ()) = a
 
+isoFilter :: MonadPlus m => (alpha -> Bool) -> Iso m alpha alpha
+isoFilter pred = Iso f f where
+    f a | pred a = pure a | otherwise = mzero
+
 iunit :: Monad m => Iso m (alpha, ()) alpha
 iunit = inverse unit
 
@@ -72,3 +76,5 @@ rmfstAny a = inverse (addfstAny a)
 
 rmsndAny :: MonadPlus m => a -> Iso m (b,a) b
 rmsndAny a = inverse (addsndAny a)
+
+
