@@ -18,7 +18,7 @@ defineIsomorphisms d = do
   join <$> mapM (\a -> defFromCon (wildcard cs) typ tyVarBndrs a) cs
 
 -- Data dec information
-data DecInfo = DecInfo Type [TyVarBndr] [Con]
+data DecInfo = DecInfo Type [TyVarBndr ()] [Con]
 
 -- | Extract data or newtype declaration information
 decInfo :: Dec -> Q DecInfo
@@ -37,12 +37,12 @@ wildcard cs
 --   The name of the partial isomorphisms is constructed by
 --   spelling the constructor name with an initial lower-case
 --   letter.
-defFromCon :: [MatchQ] -> Type -> [TyVarBndr] -> Con -> DecsQ
+defFromCon :: [MatchQ] -> Type -> [TyVarBndr ()] -> Con -> DecsQ
 defFromCon matches t tyVarBndrs con = do
     let funName = rename $ conName con
     sig <- SigD funName `fmap` isoType t tyVarBndrs (conFields con)
     fun <- funD funName [ clause [] (normalB (isoFromCon matches con)) [] ]
-    return [sig, fun]
+    return [sig,fun]
     where -- | Converts a constructor name (starting with an upper-case
           --   letter) into a function name (starting with a lower-case
           --   letter).
@@ -52,23 +52,22 @@ defFromCon matches t tyVarBndrs con = do
 
           -- | Create Iso type for specified type
           -- and conctructor fields (Iso (a, b) (CustomType a b c))
-          isoType :: Type -> [TyVarBndr] -> [Type] -> Q Type
+          isoType :: Type -> [TyVarBndr ()] -> [Type] -> Q Type
           isoType typ tyVarBndrs fields = do
               isoCon <- [t| SynIso |]
               mtCon <- [t| SynMonad |]
               tn <- newName "t"
               sn <- newName "s"
-              let tyVarBndrsA = PlainTV tn : PlainTV sn : tyVarBndrs
-                  ctx = mtCon `AppT` (VarT tn) `AppT` (VarT sn)
+              let ctx = mtCon `AppT` (VarT tn) `AppT` (VarT sn)
                   isoL = isoArgs fields
                   isoR = foldl AppT typ $ map tyVarBndrToType tyVarBndrs
-              return $ ForallT tyVarBndrsA [ctx]
+              return $ ForallT [] [ctx]
                      $ isoCon `AppT` (VarT tn) `AppT` isoL `AppT` isoR
 
             where -- | Convert tyVarBndr to type
-                 tyVarBndrToType :: TyVarBndr -> Type
-                 tyVarBndrToType (PlainTV  n)   = VarT n
-                 tyVarBndrToType (KindedTV n k) = SigT (VarT n) k
+                 tyVarBndrToType :: TyVarBndr () -> Type
+                 tyVarBndrToType (PlainTV  n _)   = VarT n
+                 tyVarBndrToType (KindedTV n _ k) = SigT (VarT n) k
 
                  isoArgs :: [Type] -> Type
                  isoArgs []     = TupleT 0
